@@ -6,6 +6,8 @@ use WP_CLI;
 use WP_CLI\Dispatcher\CompositeCommand;
 use WP_Error;
 
+use function WP_CLI\Utils\proc_open_compat;
+
 /**
  * Performs the execution of a command.
  *
@@ -1081,7 +1083,14 @@ class Runner {
 
 		$escaped_command = $this->generate_ssh_command( $bits, $wp_command );
 
-		passthru( $escaped_command, $exit_code );
+		$pipes = [];
+		$proc = proc_open_compat( $escaped_command, [STDIN, STDOUT, STDERR], $pipes );
+		if ( is_resource( $proc ) ) {
+			$exit_code = proc_close( $proc );
+		} else {
+			$exit_code = -1;
+		}
+		$exit_code = $exit_code & 255;
 		if ( 255 === $exit_code ) {
 			WP_CLI::error( 'Cannot connect over SSH using provided configuration.', 255 );
 		} else {
