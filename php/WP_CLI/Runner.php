@@ -1183,6 +1183,9 @@ class Runner {
 		$is_stdout_tty = function_exists( 'posix_isatty' ) && posix_isatty( STDOUT );
 		$is_stdin_tty  = function_exists( 'posix_isatty' ) ? posix_isatty( STDIN ) : true;
 
+		$docker_set_stdout_tty = $is_stdout_tty && ! Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_TTY' );
+		$docker_set_stdin_tty = $is_stdin_tty && ! Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_INTERACTIVE' );
+
 		$docker_compose_v2_version_cmd = Utils\esc_cmd( Utils\force_env_on_nix_systems( 'docker' ) . ' compose %s', 'version' );
 		$docker_compose_cmd            = ! empty( Process::create( $docker_compose_v2_version_cmd )->run()->stdout )
 				? 'docker compose'
@@ -1196,15 +1199,15 @@ class Runner {
 				$ssh_args ? $ssh_args . ' ' : '',
 				$bits['user'] ? '--user ' . escapeshellarg( $bits['user'] ) . ' ' : '',
 				$bits['path'] ? '--workdir ' . escapeshellarg( $bits['path'] ) . ' ' : '',
-				$is_stdout_tty && ! Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_TTY' ) ? '-t  ' : '',
-				$is_stdin_tty || Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_INTERACTIVE' ) ? '' : '-i ',
+				$docker_set_stdout_tty && $docker_set_stdin_tty ? '-t ' : '',
+				$docker_set_stdout_tty && ! $docker_set_stdin_tty ? '-e SHELL_PIPE=0 ' : '',
 				escapeshellarg( $bits['host'] ),
 				escapeshellarg( $wp_command )
 			);
 		}
 
 		if ( 'docker-compose' === $bits['scheme'] ) {
-			$command = '%s exec %s%s%s%s%s sh -c %s';
+			$command = '%s exec %s%s%s%s%s%s sh -c %s';
 
 			$escaped_command = sprintf(
 				$command,
@@ -1212,7 +1215,8 @@ class Runner {
 				$ssh_args ? $ssh_args . ' ' : '',
 				$bits['user'] ? '--user ' . escapeshellarg( $bits['user'] ) . ' ' : '',
 				$bits['path'] ? '--workdir ' . escapeshellarg( $bits['path'] ) . ' ' : '',
-				$is_stdout_tty || Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_TTY' ) ? '' : '-T ',
+				$docker_set_stdin_tty ? '-t ' : '-T ',
+				$docker_set_stdout_tty ? '-e SHELL_PIPE=0 ' : '-e SHELL_PIPE=1 ',
 				escapeshellarg( $bits['host'] ),
 				escapeshellarg( $wp_command )
 			);
@@ -1232,8 +1236,8 @@ class Runner {
 				$ssh_args ? $ssh_args . ' ' : '',
 				$bits['user'] ? '--user ' . escapeshellarg( $bits['user'] ) . ' ' : '',
 				$bits['path'] ? '--workdir ' . escapeshellarg( $bits['path'] ) . ' ' : '',
-				$is_stdout_tty || Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_TTY' ) ? '' : '-T ',
-				$is_stdin_tty || Utils\get_env_or_config( 'WP_CLI_DOCKER_NO_INTERACTIVE' ) ? '' : '-i ',
+				$docker_set_stdin_tty ? '-t ' : '-T ',
+				$docker_set_stdout_tty ? '-e SHELL_PIPE=0 ' : '-e SHELL_PIPE=1 ',
 				$env_flags,
 				escapeshellarg( $bits['host'] ),
 				$wp_command
